@@ -26,13 +26,15 @@ from skimage import io
 from skimage import transform
 from mpl_toolkits.mplot3d import Axes3D
 
+################################################## Helper Functions ##################################################
+
 def read_csv(path, random_state=None, reduce_set_size=False):
 
 	data = pd.read_csv(path)
 	data = data.values
 
 	if reduce_set_size:
-		# Randomly select 75% odata the images with a steering angle odata 0 to remove, in order to avoid overdataitting
+		# Randomly select 75% of data the images with a steering angle odata 0 to remove, in order to avoid overdataitting
 		zero_id = np.where(data[:, 3] == 0)
 		zero_id = shuffle(zero_id[0], random_state=random_state)
 		del_id = zero_id[0:int(0.75*len(zero_id))]
@@ -40,29 +42,49 @@ def read_csv(path, random_state=None, reduce_set_size=False):
 
 	return data
 
-def read_image(f):
+def read_image(f, h, w, d):
 	'''Take an array of filenames as input and reads the images with those names.'''
 
-	x = np.array([]).reshape(0, 90, 320, 3)
+	x = np.array([]).reshape(0, h, w, d)
+
+	if f.ndim == 1:
+		for i in f:
+			RGB_img = cv2.cvtColor(cv2.imread(i), cv2.COLOR_BGR2RGB)
+			x = np.append(x, np.array([RGB_img]), axis=0)
+
+	else:
+		for i in range(f.shape[-1]):
+			for j in range(len(f)):
+				RGB_img = cv2.cvtColor(cv2.imread(f[j, i]), cv2.COLOR_BGR2RGB)
+				x = np.append(x, np.array([RGB_img]), axis=0)
+
+	return x
+
+def crop_images(f, path):
+	'''Takes an array of filenames, crops the images associated with the filenames, and saves to the directory given.
+	   A csv containing the filenames is also saved.'''
+
+	res = np.array([])
 
 	if f.ndim == 1:
 		for i in f:
 			RGB_img = cv2.cvtColor(cv2.imread(i), cv2.COLOR_BGR2RGB)
 			RGB_img = RGB_img[50:140, :, :]
-			x = np.append(x, np.array([RGB_img]), axis=0)
-
-			# fig = plt.figure()
-			# ax = fig.add_subplot(111)
-			# ax.imshow(RGB_img)
-			# plt.show()
+			filename = path + i[i.index('/'):]
+			imsave(filename, RGB_img)
+			res = np.append(res, filename, axis=0)
 	else:
 		for i in range(f.shape[-1]):
 			for j in range(len(f)):
 				RGB_img = cv2.cvtColor(cv2.imread(f[j, i]), cv2.COLOR_BGR2RGB)
-				RGB_img = RGB_img[20:110, :, :]
-				x = np.append(x, np.array([RGB_img]), axis=0)
+				RGB_img = RGB_img[50:140, :, :]
+				filename = path + f[j, i][f[j, i].index('/'):]
+				imsave(filename, RGB_img)
+				res = np.append(res, filename, axis=0)
 
-	return x
+	df = pd.DataFrame(res, columns=['center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed'])
+	df.to_csv('aug_driving_log.csv')
+
 
 def rotate_images(data, path, max_angle=20, savefile=False):
 	
@@ -150,8 +172,29 @@ def create_augmented_dataset():
 	df = pd.DataFrame(res, columns=['center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed'])
 	df.to_csv('aug_driving_log.csv')
 
+def use_three_cameras(data, offset=0):
+	'''Creates a datastructure that treats the left and right camera images as if they were both from the
+	   center camera, and adjusts the steering angle associated with those cameras.'''
+
+	res = np.array([]).reshape((0, 5))
+
+	# Create a data array of images and the adjusted steering angle for each image from data
+	for row in data:
+		angle = row[3]
+		for i in range(3):
+			if i == 1:
+				angle = center_angle + offset
+			elif i == 2:
+				angle = center_angle - offset
+			d = [row[i], angle]
+			d = d.extend([row[4:8]])
+			res = np.append(res, np.array(d))
+
+	return res
+
 # Create a generator to input data into the model in batches
 def generate_arrays_from_file(f, labels, batch_size):
+
 	while True:
 		f, labels = shuffle(f, labels)
 		for offset in range(0, len(f), batch_size):
@@ -162,83 +205,125 @@ def generate_arrays_from_file(f, labels, batch_size):
 
 			yield x, y
 
-data = read_csv('driving_log.csv', reduce_set_size=True, random_state=0)
-data = np.append(data, read_csv('aug_driving_log.csv', random_state=0), axis=0)
-files = data[:, 0]
-y = data[:, 3]
+def create_nvidia_model(activation='relu'):
 
-# Create training and validation sets
-f_train, f_valid, y_train, y_valid = train_test_split(files, y, test_size=0.20, random_state=0)
+	if activation == 'relu':
+		A = Activation('relu')
+	else:
+		A = ELU()
 
-## Define the architecture
-model = Sequential()
+	## Define the architecture
+	model = Sequential()
 
-# Normalize the data to be within the range (-1, 1)
-model.add(Lambda(lambda x: x/127.5 - 1., input_shape=(90, 320, 3)))
+	# Normalize the data to be within the range (-1, 1)
+	model.add(Lambda(lambda x: x/127.5 - 1., input_shape=(90, 320, 3)))
 
-# Use a modification of the NVIDIA architecture
-model.add(Convolution2D(24, 5, 5, subsample=(2, 2), border_mode='valid'))
-model.add(Activation('relu'))
-model.add(Convolution2D(36, 5, 5, subsample=(2, 2), border_mode='valid'))
-model.add(Activation('relu'))
-model.add(Convolution2D(48, 5, 5, subsample=(2, 2), border_mode='valid'))
-model.add(Activation('relu'))
-model.add(Convolution2D(64, 3, 3, subsample=(1, 1), border_mode='valid'))
-model.add(Activation('relu'))
+	# Use a modification of the NVIDIA architecture
+	model.add(Convolution2D(24, 5, 5, subsample=(2, 2), border_mode='valid'))
+	model.add(A)
+	model.add(Convolution2D(36, 5, 5, subsample=(2, 2), border_mode='valid'))
+	model.add(A)
+	model.add(Convolution2D(48, 5, 5, subsample=(2, 2), border_mode='valid'))
+	model.add(A)
+	model.add(Convolution2D(64, 3, 3, subsample=(1, 1), border_mode='valid'))
+	model.add(A)
 
-# model.add(Convolution2D(64, 3, 3, subsample=(1, 1), border_mode='valid'))
-model.add(Flatten())
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
+	# model.add(Convolution2D(64, 3, 3, subsample=(1, 1), border_mode='valid'))
+	model.add(Flatten())
+	model.add(Dropout(0.5))
+	model.add(A)
 
-model.add(Dense(1164))
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
+	model.add(Dense(1164))
+	model.add(Dropout(0.5))
+	model.add(A)
 
-model.add(Dense(100))
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
+	model.add(Dense(100))
+	model.add(Dropout(0.5))
+	model.add(A)
 
-model.add(Dense(50))
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
+	model.add(Dense(50))
+	model.add(Dropout(0.5))
+	model.add(A)
 
-model.add(Dense(10))
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
+	model.add(Dense(10))
+	model.add(Dropout(0.5))
+	model.add(A)
 
-model.add(Dense(1))
+	model.add(Dense(1))
+
+	return model
+
+def create_commaai_model():
+
+	if activation == 'relu':
+		A = Activation('relu')
+	else:
+		A = ELU()
+
+	## Define the architecture
+	model = Sequential()
+
+	# Normalize the data to be within the range (-1, 1)
+	model.add(Lambda(lambda x: x/127.5 - 1., input_shape=(90, 320, 3)))
+
+	# Use a modification of the commaai network architecture. The original commaai network can be found here:
+	# https://github.com/commaai/research/blob/master/train_steering_model.py
+	model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
+	model.add(A)
+	model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
+	model.add(A)
+	model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode="same"))
+	model.add(Flatten())
+	model.add(Dropout(.2))
+	model.add(A)
+	model.add(Dense(512))
+	model.add(Dropout(.5))
+	model.add(A)
+	model.add(Dense(1))
+
+	return model
+
+def eval_model(model):
+	# Compile and fit the Model
+	model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
+	model.fit_generator(generate_arrays_from_file(f_train, y_train, 128), 
+						samples_per_epoch=len(f_train), 
+						nb_epoch=5, verbose=1, validation_data=generate_arrays_from_file(f_valid, y_valid, 128),
+						nb_val_samples=len(f_valid))
+
+	model_json = model.to_json()
+
+	with open("model.json", "w") as json_file:
+	    json_file.write(model_json)
+
+	# serialize weights to HDF5
+	model.save_weights("model.h5")
+
+########################################################################################################################
+
+# Read in the original dataset
+data_0 = read_csv('driving_log_0.csv', reduce_set_size=True, random_state=0)
+
+# Read in extra data for turns
+data_turns = read_csv('driving_log_turns.csv', random_state=0)
+
+# Read in extra data for recovery
+data_recovery = read_csv('driving_log_recovery.csv', random_state=0)
+
+# Combine the datasets together
+data_full = np.concatenate((data_0, data_turns, data_recovery), axis=0)
+
+# crop_images(data_full[:10, :3], path='IMG_Cropped')
+
+rotate_images()
 
 
-# # Use a modification of the commaai network architecture. The original commaai network can be found here:
-# # https://github.com/commaai/research/blob/master/train_steering_model.py
-# model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
-# # model.add(Activation('relu'))
-# model.add(ELU())
-# model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
-# # model.add(Activation('relu'))
-# model.add(ELU())
-# model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode="same"))
-# model.add(Flatten())
-# model.add(Dropout(.2))
-# # model.add(Activation('relu'))
-# model.add(ELU())
-# model.add(Dense(512))
-# model.add(Dropout(.5))
-# # model.add(Activation('relu'))
-# model.add(ELU())
-# model.add(Dense(1))
 
-# Compile and fit the Model
-model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
-model.fit_generator(generate_arrays_from_file(f_train, y_train, 128), 
-					samples_per_epoch=len(f_train), 
-					nb_epoch=5, verbose=1, validation_data=generate_arrays_from_file(f_valid, y_valid, 128),
-					nb_val_samples=len(f_valid))
+# # data = np.append(data, read_csv('aug_driving_log.csv', random_state=0), axis=0)
+# files = data[:, 0]
+# y = data[:, 3]
 
-model_json = model.to_json()
-with open("model.json", "w") as json_file:
-    json_file.write(model_json)
+# # Create training and validation sets
+# f_train, f_valid, y_train, y_valid = train_test_split(files, y, test_size=0.20, random_state=0)
 
-# serialize weights to HDF5
-model.save_weights("model.h5")
+
