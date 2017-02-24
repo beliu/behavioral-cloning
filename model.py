@@ -60,30 +60,24 @@ def read_image(f, h, w, d):
 
 	return x
 
-def crop_images(f, path):
-	'''Takes an array of filenames, crops the images associated with the filenames, and saves to the directory given.
-	   A csv containing the filenames is also saved.'''
+def crop_images(data, path):
+	'''Takes an array of filenames, crops the images associated with the filenames, and saves 
+	   to the directory given. A csv containing the filenames is also saved.'''
 
-	res = np.array([])
+	res = np.array([]).reshape((0, 7))
 
-	if f.ndim == 1:
-		for i in f:
-			RGB_img = cv2.cvtColor(cv2.imread(i), cv2.COLOR_BGR2RGB)
+	for row in data:
+		res = np.append(res, np.array([row]), axis=0)
+
+		for i in range(3):
+			filename = path + row[i][row[i].index('/'):]
+			res[-1, i] = filename
+			RGB_img = cv2.cvtColor(cv2.imread(row[i]), cv2.COLOR_BGR2RGB)
 			RGB_img = RGB_img[50:140, :, :]
-			filename = path + i[i.index('/'):]
 			imsave(filename, RGB_img)
-			res = np.append(res, filename, axis=0)
-	else:
-		for i in range(f.shape[-1]):
-			for j in range(len(f)):
-				RGB_img = cv2.cvtColor(cv2.imread(f[j, i]), cv2.COLOR_BGR2RGB)
-				RGB_img = RGB_img[50:140, :, :]
-				filename = path + f[j, i][f[j, i].index('/'):]
-				imsave(filename, RGB_img)
-				res = np.append(res, filename, axis=0)
 
 	df = pd.DataFrame(res, columns=['center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed'])
-	df.to_csv('aug_driving_log.csv')
+	df.to_csv('driving_log_cropped.csv', index=False)
 
 
 def rotate_images(data, path, max_angle=20, savefile=False):
@@ -92,16 +86,16 @@ def rotate_images(data, path, max_angle=20, savefile=False):
 	camera = ['center', 'left', 'right']
 	res = np.array([]).reshape(0, 7)
 
-	for i in data:
-		res = np.append(res, np.array([i]), axis=0)
+	for row in data:
+		res = np.append(res, np.array([row]), axis=0)
 
-		for j in range(3):
-			filename = path + '/' + camera[j] + '_rotated_img_' + str(count) + '.jpg'
-			res[-1, j] = filename
+		for i in range(3):
+			filename = path + '/' + camera[i] + '_rotated_img_' + str(count) + '.jpg'
+			res[-1, i] = filename
 
 			if savefile:
 				angle = random.uniform(-max_angle, max_angle)	# Randomly selected angle between max_angle
-				img = Image.open(i[j])
+				img = Image.open(row[i])
 				img = img.rotate(angle)
 				imsave(filename, img)
 
@@ -115,17 +109,17 @@ def shear_images(data, path, max_shear=0.2, savefile=False):
 	camera = ['center', 'left', 'right']
 	res = np.array([]).reshape(0, 7)
 
-	for i in data:
-		res = np.append(res, np.array([i]), axis=0)
+	for row in data:
+		res = np.append(res, np.array([row]), axis=0)
 		
-		for j in range(3):
-			filename = path + '/' + camera[j] + '_sheared_img_' + str(count) + '.jpg'
-			res[-1, j] = filename
+		for i in range(3):
+			filename = path + '/' + camera[i] + '_sheared_img_' + str(count) + '.jpg'
+			res[-1, i] = filename
 
 			if savefile:
 				# Randomly selected angle between max_angle
 				shearing = random.uniform(-max_shear, max_shear)	
-				img = io.imread(i[j])
+				img = io.imread(row[i])
 				# Create Afine transform
 				afine_tf = transform.AffineTransform(shear=shearing)
 				# Apply transform to image data
@@ -142,16 +136,16 @@ def shift_brightness_images(data, path, savefile=False):
 	camera = ['center', 'left', 'right']
 	res = np.array([]).reshape(0, 7)
 
-	for i in data:
-		res = np.append(res, np.array([i]), axis=0)
+	for row in data:
+		res = np.append(res, np.array([row]), axis=0)
 
-		for j in range(3):
-			filename = path + '/' + camera[j] + '_shifted_brightness_img_' + str(count) + '.jpg'
-			res[-1, j] = filename
+		for i in range(3):
+			filename = path + '/' + camera[i] + '_shifted_brightness_img_' + str(count) + '.jpg'
+			res[-1, i] = filename
 
 			if savefile:
 				random_bright = .25+np.random.uniform()    # Randomly generate a brightness level
-				img = cv2.imread(i[j])
+				img = cv2.imread(row[i])
 				# Apply the random brightness to the V layer of an HSV image and then convert back to RGB
 				RGB_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 				img = cv2.cvtColor(RGB_img,cv2.COLOR_RGB2HSV)
@@ -163,14 +157,13 @@ def shift_brightness_images(data, path, savefile=False):
 
 	return res		
 
-def create_augmented_dataset():
-	data = reduce_set_size('driving_log.csv', random_state=0)
-	res = rotate_images(data, 'Aug_IMG', savefile=True)
-	res = shear_images(data, 'Aug_IMG', savefile=True)
-	res = np.append(res, shift_brightness_images(data, 'Aug_IMG', savefile=True), axis=0)
+def create_augmented_dataset(data, path):
+	res = rotate_images(data, path, savefile=True)
+	res = np.append(res, shear_images(data, path, savefile=True), axis=0)
+	res = np.append(res, shift_brightness_images(data, path, savefile=True), axis=0)
 
 	df = pd.DataFrame(res, columns=['center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed'])
-	df.to_csv('aug_driving_log.csv')
+	df.to_csv('driving_log_aug.csv', index=False)
 
 def use_three_cameras(data, offset=0):
 	'''Creates a datastructure that treats the left and right camera images as if they were both from the
@@ -180,15 +173,20 @@ def use_three_cameras(data, offset=0):
 
 	# Create a data array of images and the adjusted steering angle for each image from data
 	for row in data:
-		angle = row[3]
+		center_angle = row[3]
+
 		for i in range(3):
-			if i == 1:
+			if i == 0:
+				angle = center_angle
+			elif i == 1:
 				angle = center_angle + offset
-			elif i == 2:
+			else:
 				angle = center_angle - offset
+
 			d = [row[i], angle]
-			d = d.extend([row[4:8]])
-			res = np.append(res, np.array(d))
+			d.extend(row[4:])
+
+			res = np.append(res, np.array([d]), axis=0)
 
 	return res
 
@@ -313,15 +311,22 @@ data_recovery = read_csv('driving_log_recovery.csv', random_state=0)
 # Combine the datasets together
 data_full = np.concatenate((data_0, data_turns, data_recovery), axis=0)
 
-# crop_images(data_full[:10, :3], path='IMG_Cropped')
+# crop_images(data_full, path='IMG_Cropped')
 
-rotate_images()
+# data_cropped = read_csv('driving_log_cropped.csv', random_state=0)
 
+# create_augmented_dataset(data_cropped, 'IMG_Aug')
 
+# Get the image files only, from each camera
+data_flat = use_three_cameras(data_full, offset=0.2)
 
-# # data = np.append(data, read_csv('aug_driving_log.csv', random_state=0), axis=0)
-# files = data[:, 0]
-# y = data[:, 3]
+df = pd.DataFrame(data_flat, columns=['image', 'steering', 'throttle', 'brake', 'speed'])
+df.to_csv('driving_log_flattened.csv', index=False)
+
+dataset = read_csv('driving_log_flattened.csv', random_state=0)
+print(dataset.shape)
+
+# y = data_full[:, 3]
 
 # # Create training and validation sets
 # f_train, f_valid, y_train, y_valid = train_test_split(files, y, test_size=0.20, random_state=0)
