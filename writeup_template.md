@@ -1,12 +1,4 @@
-#**Behavioral Cloning** 
-
-##Writeup Template
-
-###You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
-
----
-
-**Behavioral Cloning Project**
+#**Behavioral Cloning Project**
 
 The goals / steps of this project are the following:
 * Use the simulator to collect data of good driving behavior
@@ -38,7 +30,7 @@ My project includes the following files:
 * model.py containing the script to create and train the model
 * drive.py for driving the car in autonomous mode
 * model.h5 containing a trained convolution neural network 
-* writeup_report.md or writeup_report.pdf summarizing the results
+* writeup_report.md summarizing the results
 
 ####2. Submission includes functional code
 Using the Udacity provided simulator and my drive.py file, the car can be driven autonomously around the track by executing 
@@ -54,19 +46,36 @@ The model.py file contains the code for training and saving the convolution neur
 
 ####1. An appropriate model architecture has been employed
 
-My model consists of a convolution neural network with 3x3 filter sizes and depths between 32 and 128 (model.py lines 18-24) 
+My model consists of a convolution neural network that is a modification of the commaai network architecture. The original
+architecture can be found here: [commaai](https://github.com/commaai/research/blob/master/train_steering_model.py)
 
-The model includes RELU layers to introduce nonlinearity (code line 20), and the data is normalized in the model using a Keras lambda layer (code line 18). 
+The architecture details are as follows:
+The input to the model consists of RGB images of size (90, 320, 3).
+
+The model normalizes the input data to within a range of (-1, 1). Normalization is done using Kera's lambda function.
+
+There are three convolution layers that follow normalization:
+The 1st layer outputs 16 filters and uses 8x8 filters, with stride 4, 'same' border padding, followed by 'RELU' activation.
+The 2nd layer outputs 32 filters and uses 5x5 filters, with stride 2, 'same' border padding, followed by 'RELU' activation.
+The 3rd layer outputs 64 filters and uses 5x5 filters, with stride 2, 'same' border padding.
+
+The output of the 3rd convolution layer is flattened and a dropout of 0.2 is applied. A 'RELU' activation follows the dropout.
+The next layer is a fully-connected layer of size 512, followed by a dropout of 0.5, and then a 'RELU' activation.
+
+The output layer is a fully-connected layer of size 1, which is the prediction of the steering angle. 
+
 
 ####2. Attempts to reduce overfitting in the model
 
-The model contains dropout layers in order to reduce overfitting (model.py lines 21). 
+I believe overfitting would result from having too many images with the same steering angle, not enough 'recovery' data (i.e. data that shows the car recovering to the center of the lane when it drifts too dangerously to the right or left of the road), and only having track one data. 
 
-The model was trained and validated on different data sets to ensure that the model was not overfitting (code line 10-16). The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
+To reduce the first issue, I randomly sampled only 25% of the total data where the steering angle is 0, which is the most common steering angle output. For the second issue, I recorded data that shows the car starting at some position near the edge of the road and then correcting itself to the center. I included data from both sides of the lane, and included as many different angles of the car to the edge as possible. For the last issue, I included a few thousand data points from track two to the input data.
+
+Within the model itself, I attempted to reduce overfitting by adding in dropout layers after the convolution layers. 
 
 ####3. Model parameter tuning
 
-The model used an adam optimizer, so the learning rate was not tuned manually (model.py line 25).
+I used an adam optimizer for evaluating the model. I output the model loss and accuracy when training so I could see how different parameters affected the model performance. Some of the paramters are tuned were the dropout rate, the batch_size, and the number of epochs. I found that using dropout rates 0.2 and 0.5, a batch size of 64, and, 5 epochs helped me navigate the entire track without running off the road.
 
 ####4. Appropriate training data
 
