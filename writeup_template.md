@@ -55,15 +55,33 @@ The input to the model consists of RGB images of size (90, 320, 3).
 The model normalizes the input data to within a range of (-1, 1). Normalization is done using Kera's lambda function.
 
 There are three convolution layers that follow normalization:
-The 1st layer outputs 16 filters and uses 8x8 filters, with stride 4, 'same' border padding, followed by 'RELU' activation.
-The 2nd layer outputs 32 filters and uses 5x5 filters, with stride 2, 'same' border padding, followed by 'RELU' activation.
-The 3rd layer outputs 64 filters and uses 5x5 filters, with stride 2, 'same' border padding.
+* The 1st layer outputs 16 filters and uses 8x8 filters, with stride 4, 'same' border padding, followed by 'RELU' activation.
+* The 2nd layer outputs 32 filters and uses 5x5 filters, with stride 2, 'same' border padding, followed by 'RELU' activation.
+* The 3rd layer outputs 64 filters and uses 5x5 filters, with stride 2, 'same' border padding.
 
-The output of the 3rd convolution layer is flattened and a dropout of 0.2 is applied. A 'RELU' activation follows the dropout.
-The next layer is a fully-connected layer of size 512, followed by a dropout of 0.5, and then a 'RELU' activation.
+* The output of the 3rd convolution layer is flattened and a dropout of 0.2 is applied. A 'RELU' activation follows the dropout.
+* The next layer is a fully-connected layer of size 512, followed by a dropout of 0.5, and then a 'RELU' activation.
 
-The output layer is a fully-connected layer of size 1, which is the prediction of the steering angle. 
+* The output layer is a fully-connected layer of size 1, which is the prediction of the steering angle. 
 
+####2. Model parameter tuning
+
+I used an adam optimizer for evaluating the model. I output the model loss and accuracy when training so I could see how different parameters affected the model performance. Some of the paramters are tuned were the dropout rate, the batch_size, and the number of epochs. I found that using dropout rates 0.2 and 0.5, a batch size of 64, and, 5 epochs helped me navigate the entire track without running off the road.
+
+####3. Appropriate training data
+
+My training data included data for normal driving and turning around the track for several laps, recovery data that shows the car starting from a position too close to either the right or left edge and then driving back to the center, and a few laps and recovery data from another track. For recovery, I included instances where the car was just nearing the egde and instances where the car was almost about to run off the road. I included several different angles at which the car was approaching the edge. I used images from all three cameras, but I treated the left and right images as if they were from the center camera. I adjusted the steering angle for the left by adding an offset of 5 degrees and the right by subtracting an offset of 5 degrees. 
+I originally included rotated, shifted, and brightened or darkened images to augment the dataset but found that it made training the model much longer yet it did not produce much better driving. Therefore I opted to not include augmented data in the training set.
+
+###Model Architecture and Training Strategy
+
+####1. Solution Design Approach
+
+My strategy for developing a model architecture was to design one that can keep the car on the road while reducing overfitting and can run relatively quickly on my laptop.
+
+I adopted the model developed by [commaai](https://github.com/commaai/research/blob/master/train_steering_model.py), since it had a smaller number of layers and was fairly simple. I believed that if the model works, then simplicity should be an advantage. When I tested it first using only the driving data provided by Udacity, the model did not work well at keeping the car on the road. I tried again on the same data with the more complicated [nVidia model](https://devblogs.nvidia.com/parallelforall/deep-learning-self-driving-cars/) but it also performed poorly. The car was slow to respond to turns and when it was close to the edge of the raod, it failed to recover. I then proceeded to include more training data and recovery data for the commaai architecture and found that the car was able to drive without going off the road. 
+
+I split my dataset into a training and validation set, with 20% of the dataset going into validation. I set the model to output the MSE loss and accuracy of the model for both the training and validation set after every epoch. The MSE and the accuracy for both the training and validation set were similar, so I believe overfitting was reduced by my approach.
 
 ####2. Attempts to reduce overfitting in the model
 
@@ -73,41 +91,22 @@ To reduce the first issue, I randomly sampled only 25% of the total data where t
 
 Within the model itself, I attempted to reduce overfitting by adding in dropout layers after the convolution layers. 
 
-####3. Model parameter tuning
-
-I used an adam optimizer for evaluating the model. I output the model loss and accuracy when training so I could see how different parameters affected the model performance. Some of the paramters are tuned were the dropout rate, the batch_size, and the number of epochs. I found that using dropout rates 0.2 and 0.5, a batch size of 64, and, 5 epochs helped me navigate the entire track without running off the road.
-
-####4. Appropriate training data
-
-Training data was chosen to keep the vehicle driving on the road. I used a combination of center lane driving, recovering from the left and right sides of the road ... 
-
-For details about how I created the training data, see the next section. 
-
-###Model Architecture and Training Strategy
-
-####1. Solution Design Approach
-
-The overall strategy for deriving a model architecture was to ...
-
-My first step was to use a convolution neural network model similar to the ... I thought this model might be appropriate because ...
-
-In order to gauge how well the model was working, I split my image and steering angle data into a training and validation set. I found that my first model had a low mean squared error on the training set but a high mean squared error on the validation set. This implied that the model was overfitting. 
-
-To combat the overfitting, I modified the model so that ...
-
-Then I ... 
-
-The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track... to improve the driving behavior in these cases, I ....
-
-At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road.
-
 ####2. Final Model Architecture
 
-The final model architecture (model.py lines 18-24) consisted of a convolution neural network with the following layers and layer sizes ...
+The architecture details are as follows:
+The input to the model consists of RGB images of size (90, 320, 3).
 
-Here is a visualization of the architecture (note: visualizing the architecture is optional according to the project rubric)
+The model normalizes the input data to within a range of (-1, 1). Normalization is done using Kera's lambda function.
 
-![alt text][image1]
+There are three convolution layers that follow normalization:
+* The 1st layer outputs 16 filters and uses 8x8 filters, with stride 4, 'same' border padding, followed by 'RELU' activation.
+* The 2nd layer outputs 32 filters and uses 5x5 filters, with stride 2, 'same' border padding, followed by 'RELU' activation.
+* The 3rd layer outputs 64 filters and uses 5x5 filters, with stride 2, 'same' border padding.
+
+* The output of the 3rd convolution layer is flattened and a dropout of 0.2 is applied. A 'RELU' activation follows the dropout.
+* The next layer is a fully-connected layer of size 512, followed by a dropout of 0.5, and then a 'RELU' activation.
+
+* The output layer is a fully-connected layer of size 1, which is the prediction of the steering angle. 
 
 ####3. Creation of the Training Set & Training Process
 
