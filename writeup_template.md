@@ -50,7 +50,7 @@ My model consists of a convolution neural network that is a modification of the 
 architecture can be found here: [commaai](https://github.com/commaai/research/blob/master/train_steering_model.py)
 
 The architecture details are as follows:
-The input to the model consists of RGB images of size (90, 320, 3).
+The input to the model consists of RGB images of size (90, 320, 3). The original sized images were cropped to show just the portion of the road directly in front of the car.
 
 The model normalizes the input data to within a range of (-1, 1). Normalization is done using Kera's lambda function.
 
@@ -91,10 +91,10 @@ To reduce the first issue, I randomly sampled only 25% of the total data where t
 
 Within the model itself, I attempted to reduce overfitting by adding in dropout layers after the convolution layers. 
 
-####2. Final Model Architecture
+####3. Final Model Architecture
 
 The architecture details are as follows:
-The input to the model consists of RGB images of size (90, 320, 3).
+The input to the model consists of RGB images of size (90, 320, 3). The original sized images were cropped to show just the portion of the road directly in front of the car.
 
 The model normalizes the input data to within a range of (-1, 1). Normalization is done using Kera's lambda function.
 
@@ -108,30 +108,41 @@ There are three convolution layers that follow normalization:
 
 * The output layer is a fully-connected layer of size 1, which is the prediction of the steering angle. 
 
-####3. Creation of the Training Set & Training Process
+####4. Creation of the Training Set & Training Process
 
 To capture good driving behavior, I first recorded two laps on track one using center lane driving. Here is an example image of center lane driving:
 
-![alt text][image2]
+![alt-text](/IMG_0/center_2016_12_01_13_31_13_381.jpg "Center Lane Driving")
 
-I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to .... These images show what a recovery looks like starting from ... :
+I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to navigate from the edges the road back to the center.
 
-![alt text][image3]
-![alt text][image4]
-![alt text][image5]
+This image shows the car recovering from the left side of the road.
+![alt-text](/IMG_Recovery/center_2017_02_22_22_19_39_128.jpg "Near Left Edge")
+
+This image shows the car recovering from the right side of the road.
+![alt-text](/IMG_Recovery/center_2017_02_22_22_07_36_872.jpg "Near Right Edge")
 
 Then I repeated this process on track two in order to get more data points.
+![alt-text](/IMG_Recovery/center_2017_02_22_23_10_31_823.jpg "Track Two")
 
-To augment the data sat, I also flipped images and angles thinking that this would ... For example, here is an image that has then been flipped:
+At this point, I cropped the images from (160, 320, 3) to (90, 320, 3). This shows only the portion of the road directly in front of the car and removes the sky and other objects in the horizon. Here is an example of a cropped image:
+![alt-text](/IMG_Cropped/center_2016_12_01_13_30_48_287.jpg "Cropped Image")
 
-![alt text][image6]
-![alt text][image7]
+I did augmentation on the cropped images because I found that if I augmented the full-sized image first and then cropped them, sometimes the transformation is lost in the crop. I performed the following operations:
+Random Rotation between -20 to 20 degrees:
+![alt-text](IMG_Aug/center_rotated_img_30.jpg "Rotated Image")
 
-Etc ....
+Randomly Adjusted the Brightness Level (bright and dark):
+![alt-text](/IMG_Aug/center_shifted_brightness_img_7272.jpg "Brightened Image")
+![alt text](/IMG_Aug/center_shifted_brightness_img_7285.jpg "Darkened Image")
 
-After the collection process, I had X number of data points. I then preprocessed this data by ...
+After the collection process, I had over 41,000 data points, which includes images from all three cameras. 
+I finally randomly shuffled the data set and put 20% of the data into a validation set. 
+
+####5. Use of a Function Generator
+When evaluating the model, I created a function generator that iterates through the dataset in batches, whose size is determined by the tunable parameter called batch_size. At the start of each epoch, the function generator shuffles the entire training dataset using sklearn's shuffle function. Then, when the dataset is broken into batches, the batches themselves are shuffled too before being returned by the generator. The generator is able to keep the training data out of the machine's memory, and only call it into memory once it is needed as input into the model.
+
+###Conclusion
+I used a modification of the commaai model for this project because I felt it was able to make the car on the road and because it was simple enough that training time would be relatively short compared to more complex models. I found that the most crucial endeavor for the success of this project was to include the right amount and the right type of training data. Since the car spends most of its time going straight, with an steering angle of zero, the model might overfit on a straight drive. I reduced the number of datapoints with a steering angle of 0, in comparison to non-zero angles, and included over 10,000 datapoints of recovery data. I believe that the recovery data was very crucial in getting the car to avoid running off the road. I also found that although having augmented images helped, the amount of extra data added for processing was not worth the gain in performance. Therefore I did not feed augmented images into the model when it was trained for the final project submission.
 
 
-I finally randomly shuffled the data set and put Y% of the data into a validation set. 
-
-I used this training data for training the model. The validation set helped determine if the model was over or under fitting. The ideal number of epochs was Z as evidenced by ... I used an adam optimizer so that manually training the learning rate wasn't necessary.
