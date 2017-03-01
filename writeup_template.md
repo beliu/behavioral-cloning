@@ -117,23 +117,30 @@ To capture good driving behavior, I first recorded two laps on track one using c
 I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to navigate from the edges the road back to the center.
 
 This image shows the car recovering from the left side of the road.
+
 ![alt-text](/IMG_Recovery/center_2017_02_22_22_19_39_128.jpg "Near Left Edge")
 
 This image shows the car recovering from the right side of the road.
+
 ![alt-text](/IMG_Recovery/center_2017_02_22_22_07_36_872.jpg "Near Right Edge")
 
 Then I repeated this process on track two in order to get more data points.
+
 ![alt-text](/IMG_Recovery/center_2017_02_22_23_10_31_823.jpg "Track Two")
 
 At this point, I cropped the images from (160, 320, 3) to (90, 320, 3). This shows only the portion of the road directly in front of the car and removes the sky and other objects in the horizon. Here is an example of a cropped image:
+
 ![alt-text](/IMG_Cropped/center_2016_12_01_13_30_48_287.jpg "Cropped Image")
 
 I did augmentation on the cropped images because I found that if I augmented the full-sized image first and then cropped them, sometimes the transformation is lost in the crop. I performed the following operations:
 Random Rotation between -20 to 20 degrees:
+
 ![alt-text](IMG_Aug/center_rotated_img_30.jpg "Rotated Image")
 
 Randomly Adjusted the Brightness Level (bright and dark):
+
 ![alt-text](/IMG_Aug/center_shifted_brightness_img_7272.jpg "Brightened Image")
+
 ![alt text](/IMG_Aug/center_shifted_brightness_img_7285.jpg "Darkened Image")
 
 After the collection process, I had over 41,000 data points, which includes images from all three cameras. 
